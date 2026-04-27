@@ -1,9 +1,14 @@
 const mongoose = require("mongoose")
 
-let isConnected = false
+let connectionPromise = null
 
 async function connectToDatabase() {
-  if (isConnected) {
+  if (mongoose.connection.readyState === 1) {
+    return
+  }
+
+  if (connectionPromise) {
+    await connectionPromise
     return
   }
 
@@ -12,11 +17,18 @@ async function connectToDatabase() {
     throw new Error("Missing MONGODB_URI in environment variables")
   }
 
-  await mongoose.connect(mongoUri, {
-    maxPoolSize: 10,
-  })
+  connectionPromise = mongoose
+    .connect(mongoUri, {
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+    })
+    .catch((error) => {
+      connectionPromise = null
+      throw error
+    })
 
-  isConnected = true
+  await connectionPromise
 }
 
 module.exports = { connectToDatabase }
